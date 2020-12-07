@@ -1,0 +1,34 @@
+    airline    precision    recall  f1-score   support
+
+    negative       0.90      0.98      0.94      2302
+    positive       0.90      0.59      0.71       584
+
+    accuracy                           0.90      2886
+   macro avg       0.90      0.79      0.83      2886
+weighted avg       0.90      0.90      0.90      2886
+
+
+
+movies_first_half
+
+              precision    recall  f1-score   support
+
+    negative       0.90      0.86      0.88      2978
+    positive       0.86      0.90      0.88      2917
+
+    accuracy                           0.88      5895
+   macro avg       0.88      0.88      0.88      5895
+weighted avg       0.88      0.88      0.88      5895
+
+
+
+movies_second_half
+
+              precision    recall  f1-score   support
+
+    negative       0.91      0.88      0.89      3278
+    positive       0.88      0.91      0.90      3328
+
+    accuracy                           0.89      6606
+   macro avg       0.89      0.89      0.89      6606
+weighted avg       0.89      0.89      0.89      6606
