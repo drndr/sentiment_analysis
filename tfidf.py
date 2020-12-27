@@ -8,6 +8,8 @@ http://martinhjelm.github.io/2017/11/12/Pandas-Replacing-Strings-In-A-Column/
 https://www.kaggle.com/codeserra09/twitter-us-airline-sentiment-lg-mnb-dt-rf-knn
 https://www.kaggle.com/lakshmi25npathi/sentiment-analysis-of-imdb-movie-reviews
 https://towardsdatascience.com/twitter-sentiment-analysis-using-fasttext-9ccd04465597
+https://chrisalbon.com/machine_learning/model_selection/hyperparameter_tuning_using_grid_search/
+https://machinelearningmastery.com/hyperparameters-for-classification-machine-learning-algorithms/
 documentations: pandas, nltk, sklearn
 
 @author: Angelina Sonderecker
@@ -15,6 +17,7 @@ documentations: pandas, nltk, sklearn
 import sys
 import os
 import pandas as pd
+import numpy as np
 import nltk  # preprocessing
 from nltk import PorterStemmer, WordNetLemmatizer, re
 from nltk.corpus import stopwords
@@ -23,6 +26,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn import svm
 from sklearn.metrics import classification_report  # evaluation
+from sklearn.model_selection import GridSearchCV  # hyperparameter optimization
 
 
 # Change working directory to data
@@ -92,23 +96,53 @@ df_train, df_test = train_test_split(df, test_size=0.2)
 vectorizer = TfidfVectorizer()
 train = vectorizer.fit_transform(df_train['text_preprocessed'])
 test = vectorizer.transform(df_test['text_preprocessed'])
+train_label = df_train[sentiment]
+test_label = df_test[sentiment]
 
-
-# TODO adjust parameters
-# Classification and evaluation: Logistic Regression
+# Classification and evaluation: Logistic Regression, default: C=1.0, solver='lbfgs', penalty='l2', max_iter=100
 lr_clf = LogisticRegression()
-lr_clf.fit(train, df_train[sentiment])
+lr_clf.fit(train, train_label)
 
 lr_sentiment_pred = lr_clf.predict(test)
-lr_report = classification_report(df_test[sentiment], lr_sentiment_pred)
-print(lr_report)
+print("no optimization:\n", classification_report(test_label, lr_sentiment_pred, digits=4))
 
+# hyperparameter search space
+# 'newton-cg', 'lbfgs', 'sag' only support 'l2' penalty
+# 'liblinear' does not support 'none' penalty
+# 'elasticnet' penalty works only for 'saga'
+#solver = ['lbfgs', 'newton-cg', 'liblinear', 'sag', 'saga']  # lbfgs failed to converge, needs more iterations
+#solver = ['saga']
+#penalty = ['l1', 'l2', 'none']  # regularization penalty (l1=lasso, l2=ridge regression)
+#C = np.logspace(0, 4, 10)  # regularization strength (smaller means stronger regulaization), use logscale (10 is base)
+C = [7.7426]
+max_iter = [1, 10, 50, 100, 1000]
+hyperparameters = {'C': C, 'max_iter': max_iter}
 
+# gird search, with crossvalidation=5
+grid_search = GridSearchCV(estimator=lr_clf, param_grid=hyperparameters, cv=5)
+grid_result = grid_search.fit(train, train_label)
+
+# Summarize results, best hyperparameters
+print("Best: %f using %s" % (grid_result.best_score_, grid_result.best_params_))
+means = grid_result.cv_results_['mean_test_score']
+stds = grid_result.cv_results_['std_test_score']
+params = grid_result.cv_results_['params']
+for mean, stdev, param in zip(means, stds, params):
+    print("%f (%f) with: %r" % (mean, stdev, param))
+
+#print('Best Solver:', best_lr_model.best_estimator_.get_params()['solver'])
+#print('Best C:', best_lr_model.best_estimator_.get_params()['C'])
+
+# Predict using best model
+lr_best_pred = grid_result.predict(test)
+print("best model:\n", classification_report(test_label, lr_best_pred, digits=4))
+
+'''
 # TODO adjust parameters, why does it take so long for movies to compute
 # Classification and evaluation: SVM
 svm_clf = svm.SVC()
-svm_clf.fit(train, df_train[sentiment])
+svm_clf.fit(train, train_label)
 
 svm_sentiment_pred = svm_clf.predict(test)
-svm_report = classification_report(df_test[sentiment], svm_sentiment_pred)
-print(svm_report)
+svm_report = classification_report(test_label, svm_sentiment_pred)
+print(svm_report)'''
