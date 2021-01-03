@@ -28,10 +28,8 @@ from sklearn import svm
 from sklearn.metrics import classification_report  # evaluation
 from sklearn.model_selection import GridSearchCV  # hyperparameter optimization
 
-
 # Change working directory to data
 os.chdir('C:/Users/Angelina/Documents/#Master/3. Semester/Advanced Data Mining & Machine Learning/0-Assignment/data')
-
 
 # Select data
 data_movies = False
@@ -49,7 +47,6 @@ else:
 
 print(df.shape, df.head())
 
-
 if not data_movies:  # only for airline dataset
     # view neutral sentiment
     neutral = df[df.airline_sentiment == "neutral"]["text"]
@@ -57,7 +54,6 @@ if not data_movies:  # only for airline dataset
     # delete neutral sentiment
     df = df[df.airline_sentiment != "neutral"]  # exclude neutral entries
     print(df.shape, df.head())
-
 
 # Preprocess data
 nltk.download('stopwords')
@@ -74,7 +70,7 @@ def preprocess_text(old_text):  # TODO emoji, emoticons and pycontractions (mayb
     new_text = re.sub(re.compile(r"(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$)"), '',
                       new_text)  # remove email
     new_text = re.sub(r'#', '', new_text)  # remove hash sign from hashtags, hashtag itself remains
-    #new_text = re.sub('@[^\s]+', '', new_text)  # deletes mentions with @ TODO I think it has no influence
+    # new_text = re.sub('@[^\s]+', '', new_text)  # deletes mentions with @ TODO I think it has no influence
     new_text = re.sub("[^a-zA-Z]", " ", new_text)  # remove remaining special characters
     words = new_text.lower().split()  # do lowercase, split into words
     words = [word for word in words if not word in stopwords_english]  # remove stop words
@@ -87,10 +83,8 @@ def preprocess_text(old_text):  # TODO emoji, emoticons and pycontractions (mayb
 df['text_preprocessed'] = df[text].apply(lambda x: preprocess_text(x))
 print(df.head())
 
-
 # Split data in train and test data (default test_size=0.25, set random_state for reproducibility)
 df_train, df_test = train_test_split(df, test_size=0.2)
-
 
 # Tokenization using TF-IDF
 vectorizer = TfidfVectorizer()
@@ -100,49 +94,71 @@ train_label = df_train[sentiment]
 test_label = df_test[sentiment]
 
 # Classification and evaluation: Logistic Regression, default: C=1.0, solver='lbfgs', penalty='l2', max_iter=100
-lr_clf = LogisticRegression()
+lr_clf = LogisticRegression(verbose=True)
 lr_clf.fit(train, train_label)
 
 lr_sentiment_pred = lr_clf.predict(test)
-print("no optimization:\n", classification_report(test_label, lr_sentiment_pred, digits=4))
+print("no optimization (lr):\n", classification_report(test_label, lr_sentiment_pred, digits=4))
 
 # hyperparameter search space
 # 'newton-cg', 'lbfgs', 'sag' only support 'l2' penalty
 # 'liblinear' does not support 'none' penalty
 # 'elasticnet' penalty works only for 'saga'
-#solver = ['lbfgs', 'newton-cg', 'liblinear', 'sag', 'saga']  # lbfgs failed to converge, needs more iterations
-#solver = ['saga']
-#penalty = ['l1', 'l2', 'none']  # regularization penalty (l1=lasso, l2=ridge regression)
-#C = np.logspace(0, 4, 10)  # regularization strength (smaller means stronger regulaization), use logscale (10 is base)
+# solver = ['lbfgs', 'newton-cg', 'liblinear', 'sag', 'saga']  # lbfgs failed to converge, needs more iterations
+# penalty = ['l1', 'l2', 'none']  # regularization penalty (l1=lasso, l2=ridge regression)
+# max_iter = [1, 10, 50, 100, 1000]
+# C = np.logspace(0, 4, 10)  # regularization strength (smaller means stronger regulaization), use logscale (10 is base)
 C = [7.7426]
-max_iter = [1, 10, 50, 100, 1000]
-hyperparameters = {'C': C, 'max_iter': max_iter}
+hyperparameters_lr = {'C': C}
 
 # gird search, with crossvalidation=5
-grid_search = GridSearchCV(estimator=lr_clf, param_grid=hyperparameters, cv=5)
-grid_result = grid_search.fit(train, train_label)
+grid_search = GridSearchCV(estimator=lr_clf, param_grid=hyperparameters_lr, cv=5)
+grid = grid_search.fit(train, train_label)
 
 # Summarize results, best hyperparameters
-print("Best: %f using %s" % (grid_result.best_score_, grid_result.best_params_))
-means = grid_result.cv_results_['mean_test_score']
-stds = grid_result.cv_results_['std_test_score']
-params = grid_result.cv_results_['params']
+print("Best (lr): %f using parameters %s,\n view model: %s" % (
+    grid.best_score_, grid.best_params_, grid.best_estimator_))
+means = grid.cv_results_['mean_test_score']
+stds = grid.cv_results_['std_test_score']
+params = grid.cv_results_['params']
 for mean, stdev, param in zip(means, stds, params):
     print("%f (%f) with: %r" % (mean, stdev, param))
 
-#print('Best Solver:', best_lr_model.best_estimator_.get_params()['solver'])
-#print('Best C:', best_lr_model.best_estimator_.get_params()['C'])
-
 # Predict using best model
-lr_best_pred = grid_result.predict(test)
-print("best model:\n", classification_report(test_label, lr_best_pred, digits=4))
+lr_best_pred = grid.predict(test)
+print("Best model (lr):\n", classification_report(test_label, lr_best_pred, digits=4))
 
-'''
-# TODO adjust parameters, why does it take so long for movies to compute
+###############################################################################
+
 # Classification and evaluation: SVM
-svm_clf = svm.SVC()
+svm_clf = svm.SVC(verbose=True)
 svm_clf.fit(train, train_label)
 
 svm_sentiment_pred = svm_clf.predict(test)
-svm_report = classification_report(test_label, svm_sentiment_pred)
-print(svm_report)'''
+print("no optimization (svm):\n", classification_report(test_label, svm_sentiment_pred, digits=4))
+
+# hyperparameter search space
+# C = np.logspace(0, 4, 10)  # default regularization C = 1.0 (penalty is squared l2)
+# max_iter = [1, 50, 100, 1000, -1]  # default = -1 (no limit)
+#gamma = ['scale', 'auto'] # default kernel coefficient = 'scale'
+#kernel = ['linear', 'poly', 'rbf']  # default = 'rbf'
+kernel = ['linear']
+
+hyperparameters_svm = {'kernel': kernel}
+
+# gird search, with crossvalidation=5
+grid_search = GridSearchCV(estimator=svm_clf, param_grid=hyperparameters_svm, cv=5)
+grid = grid_search.fit(train, train_label)
+
+# Summarize results, best hyperparameters
+print("Best (svm): %f using parameters %s,\n view model: %s" % (
+    grid.best_score_, grid.best_params_, grid.best_estimator_))
+means = grid.cv_results_['mean_test_score']
+stds = grid.cv_results_['std_test_score']
+params = grid.cv_results_['params']
+for mean, stdev, param in zip(means, stds, params):
+    print("%f (%f) with: %r" % (mean, stdev, param))
+
+# Predict using best model
+svm_best_pred = grid.predict(test)
+print("Best model (svm):\n", classification_report(test_label, svm_best_pred, digits=4))
